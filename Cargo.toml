@@ -7,5 +7,5 @@ edition = "2021"
 
 [dependencies]
 eyre = "0.6.8"
-softbuffer = "0.3.1"
-winit = "0.29.1-beta"
+softbuffer = "0.4.2"
+winit = "0.29.15"

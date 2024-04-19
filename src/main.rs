@@ -4,26 +4,22 @@ use eyre::{format_err, Result, WrapErr};
 use winit::{
     dpi::PhysicalSize,
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
     window::Window,
 };
 
-struct State {
+struct State<'win> {
     // reverse order is important for safety (though I doubt anyone cares at exit)
-    surface: softbuffer::Surface,
-    _context: softbuffer::Context,
-    window: Window,
+    surface: softbuffer::Surface<&'win Window, &'win Window>,
+    _context: softbuffer::Context<&'win Window>,
+    window: &'win Window,
 }
 
-impl State {
-    pub fn new(event_loop: &EventLoop<()>) -> Result<Self> {
-        let window = Window::new(event_loop).wrap_err("while creating window")?;
-
-        // SAFETY: window is only dropped at the end of the struct
-        // can't use wrap_err since softbuffer's error is neither send nor sync
-        let context = unsafe { softbuffer::Context::new(&window) }
+impl<'win> State<'win> {
+    pub fn new(window: &'win Window) -> Result<Self> {
+        let context = softbuffer::Context::new(window)
             .map_err(|e| format_err!("while creating softbuffer context: {e}"))?;
-        let surface = unsafe { softbuffer::Surface::new(&context, &window) }
+        let surface = softbuffer::Surface::new(&context, window)
             .map_err(|e| format_err!("while creating surface: {e}"))?;
 
         let mut state = Self {
@@ -39,18 +35,18 @@ impl State {
         Ok(state)
     }
 
-    pub fn process(&mut self, event: Event<()>) -> Result<ControlFlow> {
+    pub fn process(&mut self, elwt: &EventLoopWindowTarget<()>, event: Event<()>) -> Result<()> {
         match event {
-            Event::RedrawRequested(_) => self.draw()?,
             Event::WindowEvent { event, .. } => match event {
+                WindowEvent::RedrawRequested => self.draw()?,
                 WindowEvent::Resized(new_size) => self.resize(new_size)?,
-                WindowEvent::CloseRequested => return Ok(ControlFlow::Exit),
+                WindowEvent::CloseRequested => elwt.exit(),
                 _ => (),
             },
             _ => (),
         }
 
-        Ok(ControlFlow::Wait)
+        Ok(())
     }
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) -> Result<()> {
@@ -84,15 +80,17 @@ impl State {
 
 fn main() -> Result<()> {
     let event_loop = EventLoop::new().wrap_err("while creating event loop")?;
-    let mut state = State::new(&event_loop).wrap_err("while creating state")?;
+    let window = Window::new(&event_loop).wrap_err("while creating window")?;
+    let mut state = State::new(&window).wrap_err("while creating state")?;
 
     event_loop
-        .run(move |event, _, flow| {
-            *flow = match state.process(event) {
+        .run(move |event, elwt| {
+            elwt.set_control_flow(ControlFlow::Wait);
+            match state.process(elwt, event) {
                 Ok(flow) => flow,
                 Err(e) => {
                     eprintln!("error: {e}");
-                    ControlFlow::Exit
+                    elwt.exit();
                 }
             }
         })
