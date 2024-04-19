@@ -9,7 +9,6 @@ use winit::{
 };
 
 struct State<'win> {
-    // reverse order is important for safety (though I doubt anyone cares at exit)
     surface: softbuffer::Surface<&'win Window, &'win Window>,
     _context: softbuffer::Context<&'win Window>,
     window: &'win Window,
