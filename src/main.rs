@@ -11,6 +11,10 @@ use winit::{
 
 #[derive(Parser)]
 struct Args {
+    /// Makes the window color oscillate between off and on at 20 FPS.
+    ///
+    /// WARNING: Likely to trigger photoepilepsy.
+    /// Use with caution. Think of your surroundings.
     #[clap(long = "strobe", default_value_t = false)]
     strobe: bool,
 }
@@ -68,8 +72,6 @@ impl<'win> State<'win> {
             ControlFlow::Wait
         };
 
-        dbg!(flow);
-
         elwt.set_control_flow(flow);
         if let Event::WindowEvent { event, .. } = event {
             match event {
@@ -109,7 +111,7 @@ impl<'win> State<'win> {
         buffer.fill(on_color);
 
         if let Some(ref mut strobe) = self.strobe.as_mut() {
-            if !dbg!(strobe.on) {
+            if !strobe.on {
                 buffer.fill(off_color);
             }
             strobe.toggle();
